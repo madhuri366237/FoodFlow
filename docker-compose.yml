@@ -1,0 +1,74 @@
+# The whole stack in three containers:
+#
+#   browser --> frontend (Nginx :3000) --/api--> backend (Spring Boot :8080) --> postgres (:5432)
+#
+#   cp .env.example .env        # once; then set real passwords and JWT_SECRET
+#   docker compose up --build   # build images and start everything
+#   open http://localhost:3000  (Swagger: http://localhost:3000/swagger-ui.html)
+#
+#   docker compose down         # stop (the database is kept in the named volume)
+#   docker compose down -v      # stop AND delete all data
+#
+# Start-up order is enforced with health checks, not guesses: the backend starts only when
+# PostgreSQL accepts connections, and the frontend only when the backend reports UP.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: foodflow-postgres
+    restart: unless-stopped
+    environment:
+      # ":?" makes compose refuse to start if a variable is missing from .env,
+      # instead of silently creating a database with an empty password.
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set - copy .env.example to .env}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}
+    ports:
+      # Published only so developers can connect with psql/IDE tools; the backend uses the
+      # internal network. Remove this line in a real deployment.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Named volume: data survives container restarts and re-creation.
+      - foodflow-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: foodflow-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # "postgres" is the service name: Docker's internal DNS resolves it to the database container.
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is not set - generate one with openssl rand -base64 48}"
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Kolkata}
+      PAYMENT_FAILURE_RATE: ${PAYMENT_FAILURE_RATE:-0.0}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      # Demo data for a first run. Set to false for anything real.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      # Direct access for API tools (curl/Postman/Swagger). The frontend goes through Nginx.
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build: ./frontend
+    container_name: foodflow-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+
+volumes:
+  foodflow-pgdata:

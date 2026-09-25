@@ -1,0 +1,10 @@
+# Normalize line endings in the repository.
+* text=auto
+
+# Shell scripts must keep LF endings, otherwise ./mvnw fails inside Linux Docker
+# images with "/bin/sh^M: bad interpreter".
+*.sh   text eol=lf
+mvnw   text eol=lf
+
+# Windows scripts keep CRLF.
+*.cmd  text eol=crlf

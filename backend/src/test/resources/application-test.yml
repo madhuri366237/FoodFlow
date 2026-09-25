@@ -1,0 +1,40 @@
+# Active when a test uses @ActiveProfiles("test").
+#
+# The datasource is NOT configured here: TestcontainersConfiguration starts a PostgreSQL
+# container and @ServiceConnection injects its URL/username/password automatically.
+# Flyway runs the real migrations and ddl-auto stays "validate", so every test run
+# also proves that the entities match the SQL schema.
+#
+# HERMETIC: application.yml also imports the developer's ../.env for local runs. Every app.*
+# value tests depend on is pinned here, so a developer's .env (SEED_DEMO_DATA=true,
+# PAYMENT_FAILURE_RATE=0.3, another time zone...) can never change test results.
+spring:
+  jpa:
+    properties:
+      hibernate:
+        # Counts executed SQL statements; used to prove there is no N+1.
+        generate_statistics: true
+app:
+  seed-demo-data: false
+  timezone: Asia/Kolkata
+  jwt:
+    # Test-only key (48 random bytes, Base64). Never used outside tests.
+    secret: np6ZOQL5Pjn4YIAxIdTy+GSP+sJUyuoU7M3weR47u0+ZuTMDldviqmswtHf93CXk
+    expiration-ms: 3600000
+    issuer: foodflow
+  cors:
+    allowed-origins: http://localhost:5173
+  payment:
+    provider: simulated
+    simulated:
+      failure-rate: 0.0
+    pending-timeout-minutes: 10
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+logging:
+  level:
+    # Hide the per-session statistics summary that generate_statistics prints.
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: warn

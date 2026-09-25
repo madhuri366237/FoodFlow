@@ -1,0 +1,114 @@
+# FoodFlow backend configuration.
+#
+# Secrets (DB password, JWT secret) are NEVER written here. They come from:
+#   1. Real environment variables (Docker Compose, CI, production) - highest priority
+#   2. A local .env file (developer machine only, git-ignored), imported below
+# If a required variable is missing, startup fails fast with a clear error
+# instead of silently connecting with a wrong/default password.
+
+spring:
+  application:
+    name: foodflow-backend
+
+  config:
+    # Reads KEY=VALUE pairs from .env (in backend/ or the project root) as properties.
+    # "optional:" means no error when the file doesn't exist (e.g. inside Docker).
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 10000
+
+  jpa:
+    # Disables the "Open Session In View" anti-pattern: the DB session closes when the
+    # service/transaction ends, so lazy-loading can't sneak queries into controllers/JSON.
+    open-in-view: false
+    hibernate:
+      # Hibernate only checks that entities match the tables; it never alters the schema.
+      # The schema will be owned by versioned SQL migrations (Flyway) from Phase 2.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        # Safety net against N+1: when several lazy proxies or collections of the same type
+        # need loading, Hibernate loads up to 32 of them in ONE query (WHERE id IN (...))
+        # instead of one query each.
+        default_batch_fetch_size: 32
+
+  jackson:
+    deserialization:
+      # By default Jackson silently TRUNCATES 4.9 to 4 when the target is an int, so a
+      # rating of 4.5 or a quantity of 2.7 would be accepted as something the client never sent.
+      # Reject such input with 400 instead.
+      accept-float-as-int: false
+
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+        # A client asking for ?size=100000 silently gets 50. Without a cap, one request
+        # could make the database return (and the JVM serialise) an entire table.
+        max-page-size: 50
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    # Never leak stack traces or exception messages to API clients.
+    include-stacktrace: never
+    include-message: never
+
+app:
+  # DEVELOPMENT ONLY: fills an empty database with demo users, restaurants, orders and reviews
+  # (see DemoDataSeeder). docker-compose turns it on; keep it off anywhere real.
+  seed-demo-data: ${SEED_DEMO_DATA:false}
+  # Business time zone: "today's orders" and the daily chart start at local midnight, not UTC.
+  # (Timestamps are still STORED in UTC; this only affects how days are bucketed.)
+  timezone: ${APP_TIMEZONE:Asia/Kolkata}
+  jwt:
+    # Base64-encoded HMAC key, at least 32 bytes (256 bits) once decoded. No default:
+    # the app refuses to start without it, rather than signing tokens with a guessable key.
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    issuer: foodflow
+  cors:
+    # Browser origins allowed to call the API directly (comma-separated).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  payment:
+    # Which PaymentGateway implementation is active. Only "simulated" exists today.
+    provider: ${PAYMENT_PROVIDER:simulated}
+    simulated:
+      # Fraction (0.0-1.0) of otherwise-successful charges that fail at random, for demos.
+      failure-rate: ${PAYMENT_FAILURE_RATE:0.0}
+    # A PENDING payment older than this is treated as abandoned (e.g. the server crashed
+    # between charging and recording the result), so the customer can try again.
+    pending-timeout-minutes: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  # On by default for development. In production set SWAGGER_ENABLED=false: the spec is a map
+  # of every endpoint, which is useful to an attacker and unnecessary for end users.
+  api-docs:
+    path: /v3/api-docs
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:true}
+    # Keep the pasted JWT across page reloads; sort endpoints by method within each tag.
+    persist-authorization: true
+    operations-sorter: method
+    tags-sorter: alpha

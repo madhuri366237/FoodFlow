@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        The Spring Boot parent pins compatible versions of every Spring, Hibernate,
+        Jackson, JUnit and Mockito library, so we never pick versions by hand.
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.16</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.foodflow</groupId>
+    <artifactId>foodflow-backend</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>FoodFlow Backend</name>
+    <description>REST API for the FoodFlow online food ordering system</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <springdoc.version>2.8.17</springdoc.version>
+        <jjwt.version>0.13.0</jjwt.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <!-- Filled in by JaCoCo's prepare-agent; empty default so tests also run without it. -->
+        <argLine/>
+    </properties>
+
+    <dependencies>
+        <!-- REST controllers, embedded Tomcat, Jackson JSON -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring Data JPA + Hibernate ORM + HikariCP connection pool -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- Jakarta Bean Validation (@NotBlank, @Email, @Positive ...) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- /actuator/health: lets Docker and us check the app and DB are up -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC driver; only needed at runtime, not to compile -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Authentication (who are you?) and authorization (what may you do?) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!--
+            JJWT: builds and verifies signed JSON Web Tokens.
+            Only the API is needed at compile time; the implementation and its
+            Jackson JSON binding are runtime-only, so our code cannot depend on internals.
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Flyway: versioned SQL migrations own the schema (db/migration/V*.sql) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Swagger UI + OpenAPI spec generated from our controllers -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- Lombok: used sparingly (getters/setters/constructors on entities) -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- JUnit 5, Mockito, AssertJ, MockMvc, Spring test context -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- MockMvc helpers for security: jwt/user request post-processors, @WithMockUser -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Testcontainers: tests start a throwaway PostgreSQL 17 container and run the real
+            Flyway migrations, so PostgreSQL-specific features (partial/expression indexes,
+            CHECK constraints) are verified - something an H2 in-memory database cannot do.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!--
+                Load Mockito as a Java agent at JVM start. Newer JDKs warn about (and will
+                eventually block) agents that attach themselves at runtime, which is what
+                Mockito does otherwise. The "properties" goal exposes each dependency's jar
+                path as a property, e.g. ${org.mockito:mockito-core:jar}.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                        @{argLine} = JaCoCo's coverage agent (set late, at test time); then Mockito's agent.
+                        Quoted: the jar path contains the user folder, which may contain spaces.
+                    -->
+                    <argLine>@{argLine} "-javaagent:${org.mockito:mockito-core:jar}" -Xshare:off</argLine>
+                </configuration>
+            </plugin>
+            <!--
+                Code coverage: "./mvnw verify" writes target/site/jacoco/index.html, showing which
+                lines and branches the tests actually execute. Coverage shows what is UNtested;
+                a high number alone doesn't prove the tests assert the right things.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
